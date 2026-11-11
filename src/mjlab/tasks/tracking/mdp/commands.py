@@ -78,9 +78,7 @@ class MotionCommand(CommandTerm):
       device=self.device,
     )
 
-    self.motion = MotionLoader(
-      self.cfg.motion_file, self.body_indexes, device=self.device
-    )
+    self.motion = self._load_motion()
     self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
     self.body_pos_relative_w = torch.zeros(
       self.num_envs, len(cfg.body_names), 3, device=self.device
@@ -122,6 +120,10 @@ class MotionCommand(CommandTerm):
     self._ghost_model = None
     self._ghost_color = np.array(cfg.viz.ghost_color, dtype=np.float32)
     self._pending_forward = False
+
+  def _load_motion(self) -> MotionLoader:
+    """Build reference data; subclasses can provide other motion formats."""
+    return MotionLoader(self.cfg.motion_file, self.body_indexes, device=self.device)
 
   @property
   def command(self) -> torch.Tensor:
@@ -317,7 +319,8 @@ class MotionCommand(CommandTerm):
     self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
     self.robot.reset(env_ids=env_ids)
 
-  def _resample_command(self, env_ids: torch.Tensor):
+  def _sample_time_steps(self, env_ids: torch.Tensor) -> None:
+    """Choose reference frames independently of writing the reset state."""
     if self.cfg.sampling_mode == "start":
       self.time_steps[env_ids] = 0
     elif self.cfg.sampling_mode == "uniform":
@@ -325,6 +328,9 @@ class MotionCommand(CommandTerm):
     else:
       assert self.cfg.sampling_mode == "adaptive"
       self._adaptive_sampling(env_ids)
+
+  def _resample_command(self, env_ids: torch.Tensor):
+    self._sample_time_steps(env_ids)
 
     root_pos = self.body_pos_w[env_ids, 0].clone()
     root_ori = self.body_quat_w[env_ids, 0].clone()

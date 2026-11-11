@@ -8,6 +8,9 @@ Upcoming version (not yet released)
 Added
 ^^^^^
 
+- Added ``MotionCommand._load_motion()`` and ``MotionCommand._sample_time_steps()``
+  extension hooks for custom motion formats and frame samplers. The default
+  tracking command retains its existing loading and sampling behavior.
 - Added ``GridPatternCfg.offset`` to shift the ray grid in frame-local XY.
 - ``GridPatternCfg.resolution`` accepts a per-axis ``(x, y)`` tuple.
 - Added a ``cu126`` extra (``uv sync --extra cu126``) that installs torch built for
