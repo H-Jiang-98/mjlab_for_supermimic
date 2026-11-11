@@ -62,6 +62,14 @@ class MotionLoader:
     self.motion_base_rots_input = self.motion_base_rots_input[
       :, [3, 0, 1, 2]
     ]  # convert to wxyz
+    # Rounded CSV quaternions are not exactly unit length. Normalize before
+    # interpolation and differentiation, which both assume unit quaternions.
+    quat_norms = self.motion_base_rots_input.norm(dim=-1, keepdim=True)
+    if not torch.isfinite(quat_norms).all() or (quat_norms < 1e-6).any():
+      raise ValueError(
+        f"{self.motion_file}: root quaternions must be finite and nonzero"
+      )
+    self.motion_base_rots_input = self.motion_base_rots_input / quat_norms
     self.motion_dof_poss_input = motion[:, 7:]
 
     self.input_frames = motion.shape[0]
@@ -112,7 +120,9 @@ class MotionLoader:
     slerped_quats = torch.zeros_like(a)
     for i in range(a.shape[0]):
       slerped_quats[i] = quat_slerp(a[i], b[i], float(blend[i]))
-    return slerped_quats
+    # Keep the world -> body -> world angular-velocity round trip consistent
+    # with MuJoCo's normalized rotations, including float32 SLERP roundoff.
+    return torch.nn.functional.normalize(slerped_quats, dim=-1)
 
   def _compute_frame_blend(
     self, times: torch.Tensor
